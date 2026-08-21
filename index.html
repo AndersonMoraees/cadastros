@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor Central de Cadastros</title>
+    
+    <style>
+        :root {
+            --bg: #0f172a; --surface: #1e293b; --surface-hover: #334155;
+            --primary: #0ea5e9; --primary-hover: #0284c7;
+            --success: #10b981; --success-hover: #059669;
+            --warning: #f59e0b;
+            --danger: #ef4444; --text: #f8fafc; --text-muted: #94a3b8;
+            --border: #334155; --border-light: #475569;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', 'Segoe UI', sans-serif; }
+        body { background-color: var(--bg); color: var(--text); display: flex; justify-content: center; align-items: center; min-height: 100vh; flex-direction: column; }
+        
+        #loginView { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 450px; padding: 20px; }
+        #appView { display: none; width: 100%; max-width: 1400px; padding: 20px; height: 100vh; flex-direction: column; }
+        
+        .app-container { background: var(--surface); border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); overflow: hidden; display: flex; flex-direction: column; border: 1px solid var(--border); width: 100%; height: 100%; }
+        
+        .nav-bar { background: #162032; display: flex; padding: 0 20px; border-bottom: 1px solid var(--border); align-items: center; justify-content: space-between; min-height: 60px; }
+        .nav-brand { font-size: 18px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+        .nav-tabs { display: flex; height: 100%; }
+        .tab-btn { background: transparent; border: none; color: var(--text-muted); padding: 18px 24px; font-size: 14px; font-weight: 600; cursor: pointer; transition: 0.2s; border-bottom: 3px solid transparent; }
+        .tab-btn:hover { color: var(--text); background: rgba(255,255,255,0.02); }
+        .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); background: rgba(14, 165, 233, 0.05); }
+        
+        .tab-content { padding: 24px; display: none; flex: 1; overflow-y: auto; }
+        .tab-content.active { display: block; }
+
+        .input-group { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+        input[type="text"], input[type="password"], input[type="number"], select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 8px; font-size: 14px; outline: none; transition: 0.2s; width: 100%; }
+        input[type="text"]:focus, input[type="password"]:focus, input[type="number"]:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2); }
+        select { cursor: pointer; appearance: auto; }
+
+        .btn { background: var(--border); color: var(--text); border: none; padding: 10px 16px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+        .btn:hover { background: var(--border-light); }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-success { background: var(--success); color: white; }
+        .btn-success:hover { background: var(--success-hover); }
+        .btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+        .btn-danger:hover { background: rgba(239, 68, 68, 0.1); }
+        .btn-warning { background: transparent; color: var(--warning); border: 1px solid var(--warning); }
+        .btn-warning:hover { background: rgba(245, 158, 11, 0.1); }
+        .btn-icon { padding: 7px 10px; }
+
+        .login-card { background: var(--surface); padding: 32px; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 20px 40px rgba(0,0,0,0.5); width: 100%; text-align: center; }
+        .login-card h2 { margin-bottom: 8px; color: var(--text); font-size: 20px; }
+        .login-card p { color: var(--text-muted); font-size: 14px; margin-bottom: 24px; line-height: 1.5; }
+        .login-card label { display: block; text-align: left; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: var(--text-muted); }
+
+        .card { background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: 12px; margin-bottom: 20px; }
+        .card h3 { margin-bottom: 12px; font-size: 16px; color: var(--primary); display: flex; align-items: center; gap: 8px; }
+
+        .forn-list { display: flex; flex-direction: column; gap: 14px; margin-top: 16px; }
+        .forn-item { background: var(--bg); border: 1px solid var(--border); padding: 18px; border-radius: 12px; display: flex; flex-direction: column; transition: 0.2s; }
+        .forn-item:hover { border-color: var(--border-light); }
+        .forn-item.editing { border-color: var(--primary); background: var(--surface); box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2); }
+        
+        .tags-container { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .tag { background: var(--surface-hover); color: var(--text); padding: 5px 12px; border-radius: 20px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border-light); }
+        .tag button { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px; display: flex; align-items: center; }
+        .tag button:hover { color: var(--danger); }
+
+        .flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+
+        .sync-bar { background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success); padding: 10px 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .sync-info { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--success); }
+
+        #toast-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 10px; z-index: 9999; }
+        .toast { background: var(--surface); border-left: 4px solid var(--primary); padding: 14px 18px; border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5); color: var(--text); font-size: 13.5px; animation: slideIn 0.3s forwards; display: flex; align-items: center; gap: 10px; }
+        .toast.success { border-color: var(--success); }
+        .toast.error { border-color: var(--danger); }
+        .toast.warning { border-color: var(--warning); }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+    </style>
+</head>
+<body>
+
+    <div id="loginView">
+        <div class="login-card">
+            <div style="font-size: 40px; margin-bottom: 12px;">🗄️</div>
+            <h2>Gestor Central de Cadastros</h2>
+            <p>Conecte-se ao Google Sheets para gerenciar os fornecedores e agendas de todas as suas aplicações.</p>
+            
+            <div style="margin-bottom: 16px;">
+                <label for="loginUrl">URL da API (Google Apps Script):</label>
+                <input type="text" id="loginUrl" placeholder="https://script.google.com/macros/s/.../exec">
+            </div>
+            
+            <div style="margin-bottom: 24px;">
+                <label for="loginSenha">Senha de Acesso:</label>
+                <input type="password" id="loginSenha" placeholder="Sua senha secreta">
+            </div>
+            
+            <button class="btn btn-primary" id="btnEntrar" style="width: 100%; padding: 12px; font-size: 15px;">
+                Conectar
+            </button>
+        </div>
+    </div>
+
+    <div id="appView">
+        <div class="app-container">
+            <header class="nav-bar">
+                <div class="nav-brand">🗄️ Gestor Central de Cadastros</div>
+                <div class="nav-tabs" style="flex: 1; margin-left: 30px;">
+                    <button class="tab-btn active" data-target="tab-fornecedores">🏷️ Fornecedores</button>
+                    <button class="tab-btn" data-target="tab-agendas">📋 Agendas</button>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-success" id="btnSincronizarNuvem" title="Enviar alterações para a planilha">
+                        ⬆️ Salvar na Nuvem
+                    </button>
+                    <button class="btn" id="btnDesconectar" style="background: transparent; border: 1px solid var(--border-light);">
+                        Desconectar
+                    </button>
+                </div>
+            </header>
+
+            <main class="tab-content active" id="tab-fornecedores">
+                
+                <div class="sync-bar">
+                    <div class="sync-info">
+                        <span id="syncStatusIcon">✅</span> 
+                        <span id="syncStatusText">Conectado ao Banco de Dados. Lembre-se de "Salvar na Nuvem" após fazer alterações.</span>
+                    </div>
+                    <div style="color: var(--text-muted); font-size: 13px;" id="lblTotalForns">0 fornecedores carregados</div>
+                </div>
+
+                <div class="flex-between" style="margin-bottom: 16px;">
+                    <div style="position: relative; flex: 1; max-width: 500px;">
+                        <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); opacity: 0.5;">🔍</span>
+                        <input type="text" id="buscaForn" placeholder="Buscar por Nome, Cód RMS, Contato, Status..." style="padding-left: 36px;">
+                    </div>
+                    <button class="btn btn-primary" id="btnNovoForn">➕ Novo Fornecedor</button>
+                </div>
+
+                <div class="forn-list" id="listaFornecedores">
+                    <!-- Preenchido via JavaScript -->
+                </div>
+            </main>
+
+            <main class="tab-content" id="tab-agendas">
+                <div class="card" style="max-width: 800px; margin: 0 auto;">
+                    <h3>📋 Gerenciamento de Agendas</h3>
+                    <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 20px;">Adicione as agendas padrão do RMS que poderão ser vinculadas aos fornecedores.</p>
+                    
+                    <div class="input-group" style="margin-bottom: 24px;">
+                        <input type="text" id="agendaCod" placeholder="Nº da Agenda (Ex: 625)" style="width: 180px;">
+                        <input type="text" id="agendaDesc" placeholder="Descrição (Ex: JUNHO)" style="flex: 1;">
+                        <button class="btn btn-success" id="btnSalvarAgenda">➕ Adicionar Agenda</button>
+                    </div>
+
+                    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
+                        <span style="display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase;">Agendas Cadastradas na Nuvem:</span>
+                        <div id="listaAgendas" class="tags-container" style="gap: 10px;"></div>
+                    </div>
+                </div>
+            </main>
+
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script>
+        const CREDENTIALS_KEY = 'gestor_cadastros_creds_v1';
+        let state = { fornecedores: [], agendas: [], nextFornId: 1 };
+        let creds = { url: '', senha: '' };
+        let editingForn = null;
+
+        const showToast = (msg, type = 'info') => {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `${type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warning' ? '⚠️' : 'ℹ️'} <span>${msg}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 4000);
+        };
+
+        const removeAcentos = str => {
+            return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        };
+
+        const extractCodes = (texto) => {
+            let limpo = texto.replace(/[,;.]/g, ' ').replace(/\s+/g, ' ').trim();
+            if (!limpo) return [];
+            limpo = limpo.replace(/\//g, ' ');
+            const tokens = limpo.split(/\s+/).filter(t => t.length > 0);
+            const codigos = [];
+            for (let token of tokens) {
+                if (token.includes('-')) { codigos.push(token); continue; }
+                if (/^\d+$/.test(token)) {
+                    codigos.push(token.slice(0, -1) + '-' + token.slice(-1));
+                } else {
+                    const numeros = token.replace(/\D/g, '');
+                    if (numeros.length > 1) codigos.push(numeros.slice(0, -1) + '-' + numeros.slice(-1));
+                }
+            }
+            return codigos;
+        };
+
+        const maskCNPJ = (v) => {
+            v = v.replace(/\D/g, "");
+            if (v.length > 14) v = v.substring(0, 14);
+            v = v.replace(/^(\d{2})(\d)/, "$1.$2");
+            v = v.replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3");
+            v = v.replace(/\.(\d{3})(\d)/, ".$1/$2");
+            v = v.replace(/(\d{4})(\d)/, "$1-$2");
+            return v;
+        };
+
+        const formatNumber = v => {
+            if (v === null || v === undefined) return '';
+            return Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        };
+
+        const sanitizePerc = (v) => {
+            if (typeof v === 'number') return v;
+            if (!v) return 0;
+            let clean = String(v).replace('%', '').replace(/\s/g, '').replace(',', '.');
+            let num = parseFloat(clean);
+            return isNaN(num) ? 0 : num;
+        };
+
+        const loadCredentials = () => {
+            const raw = localStorage.getItem(CREDENTIALS_KEY);
+            if(raw) {
+                creds = JSON.parse(raw);
+                document.getElementById('loginUrl').value = creds.url;
+                document.getElementById('loginSenha').value = creds.senha;
+            }
+        };
+
+        const saveCredentials = () => {
+            creds.url = document.getElementById('loginUrl').value.trim();
+            creds.senha = document.getElementById('loginSenha').value;
+            localStorage.setItem(CREDENTIALS_KEY, JSON.stringify(creds));
+        };
+
+        document.getElementById('btnDesconectar').addEventListener('click', () => {
+            document.getElementById('appView').style.display = 'none';
+            document.getElementById('loginView').style.display = 'flex';
+            state.fornecedores = [];
+            state.agendas = [];
+            editingForn = null;
+        });
+
+        document.getElementById('btnEntrar').addEventListener('click', async () => {
+            saveCredentials();
+            if(!creds.url || !creds.senha) return showToast('Preencha a URL e a Senha para conectar.', 'error');
+
+            const btn = document.getElementById('btnEntrar');
+            btn.textContent = 'Conectando...'; btn.disabled = true;
+
+            try {
+                const res = await fetch(creds.url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ acao: 'LER', senha: creds.senha })
+                });
+                
+                const data = await res.json();
+                if(data.error) throw new Error(data.error);
+                
+                state.nextFornId = 1;
+                state.fornecedores = data.fornecedores.map(f => ({
+                    id: state.nextFornId++,
+                    nome: f.nome,
+                    codigos: f.codigos || [],
+                    cnpj: f.cnpj || '',
+                    cnpjItau: f.cnpjItau || '',
+                    prazo: f.prazo || '',
+                    contatos: (f.contato || '').split(',').map(c => c.trim()).filter(Boolean),
+                    percContratual: f.percContratual || 0,
+                    agendasPermitidas: f.agendasPermitidas || [],
+                    ativo: f.ativo || '',
+                    notaServico: f.notaServico || '',
+                    promissoria: f.promissoria || '',
+                    enviarNota: f.enviarNota || ''
+                }));
+                state.agendas = data.agendas || [];
+
+                document.getElementById('loginView').style.display = 'none';
+                document.getElementById('appView').style.display = 'flex';
+                
+                renderFornecedores();
+                renderAgendas();
+                showToast('Banco de dados carregado com sucesso!', 'success');
+
+            } catch (e) {
+                showToast('Falha na conexão: ' + e.message, 'error');
+            } finally {
+                btn.textContent = 'Conectar'; btn.disabled = false;
+            }
+        });
+
+        document.getElementById('btnSincronizarNuvem').addEventListener('click', async () => {
+            if(editingForn) return showToast('Salve a edição do fornecedor atual antes de enviar para a nuvem.', 'warning');
+
+            const btn = document.getElementById('btnSincronizarNuvem');
+            const originalText = btn.textContent;
+            btn.textContent = 'Enviando...'; btn.disabled = true;
+
+            try {
+                const fornecedoresParaSalvar = state.fornecedores.map(f => {
+                    const copy = { ...f };
+                    copy.contato = (f.contatos || []).join(', ');
+                    return copy;
+                });
+
+                const res = await fetch(creds.url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ 
+                        acao: 'SALVAR', 
+                        senha: creds.senha,
+                        fornecedores: fornecedoresParaSalvar,
+                        agendas: state.agendas
+                    })
+                });
+                const data = await res.json();
+                if(data.error) throw new Error(data.error);
+                
+                showToast('Banco de dados atualizado na nuvem!', 'success');
+                const icon = document.getElementById('syncStatusIcon');
+                icon.textContent = '🔄';
+                setTimeout(() => { icon.textContent = '✅'; }, 2000);
+
+            } catch(e) {
+                showToast('Erro ao salvar na nuvem: ' + e.message, 'error');
+            } finally {
+                btn.textContent = originalText; btn.disabled = false;
+            }
+        });
+
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', e => {
+                document.querySelectorAll('.tab-btn, .tab-content').forEach(el => el.classList.remove('active'));
+                e.target.classList.add('active');
+                document.getElementById(e.target.dataset.target).classList.add('active');
+            });
+        });
+
+        document.getElementById('btnSalvarAgenda').addEventListener('click', () => {
+            const cod = document.getElementById('agendaCod').value.trim();
+            const desc = document.getElementById('agendaDesc').value.trim().toUpperCase();
+            if (!cod || !desc) return showToast('Preencha código e descrição da agenda.', 'error');
+            if (state.agendas.some(a => a.cod === cod)) return showToast('Agenda já cadastrada!', 'error');
+
+            state.agendas.push({ cod, desc });
+            renderAgendas();
+            document.getElementById('agendaCod').value = '';
+            document.getElementById('agendaDesc').value = '';
+            showToast('Agenda adicionada localmente. Lembre-se de salvar na nuvem!', 'success');
+        });
+
+        const renderAgendas = () => {
+            const box = document.getElementById('listaAgendas');
+            if(state.agendas.length === 0) {
+                box.innerHTML = '<span style="color:var(--text-muted); font-size:13px;">Nenhuma agenda cadastrada.</span>';
+                return;
+            }
+            const agendasOrdenadas = [...state.agendas].sort((a, b) => Number(a.cod) - Number(b.cod));
+            box.innerHTML = agendasOrdenadas.map(a => `
+                <span class="tag" style="background:rgba(14, 165, 233, 0.1); border-color:var(--primary); color:var(--primary); padding: 8px 14px; font-size:14px;">
+                    <strong>${a.cod}</strong> - ${a.desc} 
+                    <button data-action="del-agenda" data-cod="${a.cod}" style="margin-left: 8px;">×</button>
+                </span>
+            `).join('');
+        };
+
+        document.getElementById('listaAgendas').addEventListener('click', e => {
+            if(e.target.dataset.action === 'del-agenda') {
+                if(confirm('Remover esta agenda do banco de dados?')) {
+                    state.agendas = state.agendas.filter(a => a.cod !== e.target.dataset.cod);
+                    renderAgendas();
+                    renderFornecedores(); 
+                }
+            }
+        });
+
+        const syncEditInputs = () => {
+            if(!editingForn) return;
+            const n = document.getElementById('edit-nome-' + editingForn.id);
+            const c = document.getElementById('edit-cnpj-' + editingForn.id);
+            const ci = document.getElementById('edit-cnpjItau-' + editingForn.id);
+            const pz = document.getElementById('edit-prazo-' + editingForn.id);
+            const p = document.getElementById('edit-perc-' + editingForn.id);
+            
+            const at = document.getElementById('edit-ativo-' + editingForn.id);
+            const ns = document.getElementById('edit-ns-' + editingForn.id);
+            const pr = document.getElementById('edit-promissoria-' + editingForn.id);
+            const en = document.getElementById('edit-enviarNota-' + editingForn.id);
+            
+            if(n) editingForn.nome = n.value.trim().toUpperCase();
+            if(c) editingForn.cnpj = c.value.trim();
+            if(ci) editingForn.cnpjItau = ci.value.trim();
+            if(pz) editingForn.prazo = pz.value.trim();
+            if(p) editingForn.percContratual = sanitizePerc(p.value);
+            
+            if(at) editingForn.ativo = at.value;
+            if(ns) editingForn.notaServico = ns.value;
+            if(pr) editingForn.promissoria = pr.value;
+            if(en) editingForn.enviarNota = en.value;
+        };
+
+        const renderFornecedores = () => {
+            const list = document.getElementById('listaFornecedores');
+            const termoOriginal = document.getElementById('buscaForn').value;
+            const termo = removeAcentos(termoOriginal.toLowerCase());
+            
+            document.getElementById('lblTotalForns').textContent = `${state.fornecedores.length} fornecedores gerenciados`;
+
+            let filtrados = [...state.fornecedores];
+            
+            if (termo) {
+                filtrados = filtrados.filter(f => {
+                    // Texto mestre com todos os dados para a busca captar sem falhas
+                    const strBusca = removeAcentos(`
+                        ${f.nome} ${f.cnpj} ${f.cnpjItau} ${f.prazo} 
+                        ${(f.contatos || []).join(' ')}
+                        ${(f.codigos || []).join(' ')}
+                        ${(f.agendasPermitidas || []).join(' ')}
+                        ${f.ativo ? `contrato ${f.ativo}` : ''}
+                        ${f.notaServico ? `nota de servico ns ${f.notaServico}` : ''}
+                        ${f.promissoria ? `promissoria promissória ${f.promissoria}` : ''}
+                        ${f.enviarNota ? `enviar nota ${f.enviarNota}` : ''}
+                    `).toLowerCase();
+
+                    return strBusca.includes(termo);
+                });
+            }
+
+            filtrados.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+
+            if (filtrados.length === 0 && !editingForn) {
+                list.innerHTML = `<div style="text-align:center; padding:30px; color:var(--text-muted);">Nenhum resultado para a busca.</div>`;
+                return;
+            }
+
+            list.innerHTML = filtrados.map(f => {
+                const isEditing = editingForn && editingForn.id === f.id;
+                const data = isEditing ? editingForn : f;
+
+                const hasCodes = data.codigos && data.codigos.length > 0;
+                const hasContatos = data.contatos && data.contatos.length > 0;
+                const hasAgendas = data.agendasPermitidas && data.agendasPermitidas.length > 0;
+
+                const codesHtml = (data.codigos || []).map(c => 
+                    `<span class="tag">${c} ${isEditing ? `<button data-action="remove-code" data-id="${data.id}" data-code="${c}">×</button>` : ''}</span>`
+                ).join('') || (isEditing ? '<span style="color:var(--text-muted);font-size:12.5px;">Nenhum código</span>' : '');
+
+                const contatosHtml = (data.contatos || []).map(c => 
+                    `<span class="tag" style="border-color: #6366f1; color: #818cf8; background: rgba(99, 102, 241, 0.05);">📞 ${c} ${isEditing ? `<button data-action="remove-contato" data-id="${data.id}" data-contato="${c}">×</button>` : ''}</span>`
+                ).join('') || (isEditing ? '<span style="color:var(--text-muted);font-size:12.5px;">Nenhum contato</span>' : '');
+
+                const agendasHtml = (data.agendasPermitidas || []).map(cod => {
+                    const ag = state.agendas.find(a => a.cod === cod);
+                    const desc = ag ? ag.desc : 'Desconhecida';
+                    return `<span class="tag" style="border-color:var(--primary); color:var(--primary); background:rgba(14, 165, 233, 0.05);">
+                                <strong>${cod}</strong> - ${desc} 
+                                ${isEditing ? `<button data-action="remove-agenda" data-id="${data.id}" data-agenda="${cod}">×</button>` : ''}
+                            </span>`;
+                }).join('') || (isEditing ? '<span style="color:var(--text-muted);font-size:12.5px;">Nenhuma agenda</span>' : '');
+
+                const percStr = data.percContratual > 0 ? `${formatNumber(data.percContratual)}%` : '';
+
+                if(isEditing) {
+                    return `
+                        <div class="forn-item editing">
+                            <div class="flex-between" style="margin-bottom: 16px;">
+                                <input type="text" id="edit-nome-${data.id}" value="${data.nome}" placeholder="NOME DO FORNECEDOR" style="font-size: 16px; font-weight: bold; text-transform: uppercase; flex: 1; border: 1px solid var(--primary);">
+                                <div style="display:flex; gap:8px;">
+                                    <button class="btn btn-success" data-action="save-forn" data-id="${data.id}">✔️ Concluir</button>
+                                    <button class="btn btn-danger" data-action="cancel-forn" data-id="${data.id}">✖ Cancelar</button>
+                                </div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                                <div class="input-group" style="margin: 0; flex-direction: column; align-items: flex-start; gap: 4px;">
+                                    <span style="font-size:12px; color:var(--text-muted); font-weight:600;">CNPJ:</span>
+                                    <input type="text" id="edit-cnpj-${data.id}" value="${data.cnpj || ''}" placeholder="00.000.000/0000-00">
+                                </div>
+                                <div class="input-group" style="margin: 0; flex-direction: column; align-items: flex-start; gap: 4px;">
+                                    <span style="font-size:12px; color:var(--text-muted); font-weight:600;">CNPJ Itaú:</span>
+                                    <input type="text" id="edit-cnpjItau-${data.id}" value="${data.cnpjItau || ''}" placeholder="00.000.000/0000-00">
+                                </div>
+                                <div class="input-group" style="margin: 0; flex-direction: column; align-items: flex-start; gap: 4px;">
+                                    <span style="font-size:12px; color:var(--text-muted); font-weight:600;">% Contrato:</span>
+                                    <input type="text" id="edit-perc-${data.id}" value="${percStr}" placeholder="0,00%">
+                                </div>
+                                <div class="input-group" style="margin: 0; flex-direction: column; align-items: flex-start; gap: 4px;">
+                                    <span style="font-size:12px; color:var(--text-muted); font-weight:600;">Prazo (Dias):</span>
+                                    <input type="number" id="edit-prazo-${data.id}" value="${data.prazo || ''}" placeholder="Ex: 30">
+                                </div>
+                            </div>
+
+                            <div class="flex-between" style="background: rgba(0,0,0,0.1); padding: 12px; border-radius: 8px; margin-bottom: 16px; justify-content: flex-start; gap: 12px;">
+                                <select id="edit-ativo-${data.id}" style="width: auto; padding: 6px 10px; font-size: 12px; font-weight: 600; color: ${data.ativo ? 'var(--text)' : 'var(--text-muted)'}; border-color: ${data.ativo ? 'var(--primary)' : 'var(--border)'};">
+                                    <option value="" ${!data.ativo ? 'selected' : ''}>Contrato: Não se aplica (Vazio)</option>
+                                    <option value="ATIVO" ${data.ativo === 'ATIVO' ? 'selected' : ''}>Contrato: ATIVO</option>
+                                    <option value="INATIVO" ${data.ativo === 'INATIVO' ? 'selected' : ''}>Contrato: INATIVO</option>
+                                </select>
+                                
+                                <select id="edit-ns-${data.id}" style="width: auto; padding: 6px 10px; font-size: 12px; font-weight: 600; color: ${data.notaServico ? 'var(--text)' : 'var(--text-muted)'}; border-color: ${data.notaServico ? 'var(--primary)' : 'var(--border)'};">
+                                    <option value="" ${!data.notaServico ? 'selected' : ''}>N.S.: Não se aplica (Vazio)</option>
+                                    <option value="ATIVO" ${data.notaServico === 'ATIVO' ? 'selected' : ''}>N.S.: ATIVA</option>
+                                    <option value="INATIVO" ${data.notaServico === 'INATIVO' ? 'selected' : ''}>N.S.: INATIVA</option>
+                                </select>
+
+                                <select id="edit-promissoria-${data.id}" style="width: auto; padding: 6px 10px; font-size: 12px; font-weight: 600; color: ${data.promissoria ? 'var(--text)' : 'var(--text-muted)'}; border-color: ${data.promissoria ? 'var(--primary)' : 'var(--border)'};">
+                                    <option value="" ${!data.promissoria ? 'selected' : ''}>Promissória: Não se aplica (Vazio)</option>
+                                    <option value="ATIVO" ${data.promissoria === 'ATIVO' ? 'selected' : ''}>Promissória: ATIVA</option>
+                                    <option value="INATIVO" ${data.promissoria === 'INATIVO' ? 'selected' : ''}>Promissória: INATIVA</option>
+                                </select>
+
+                                <select id="edit-enviarNota-${data.id}" style="width: auto; padding: 6px 10px; font-size: 12px; font-weight: 600; color: ${data.enviarNota ? 'var(--text)' : 'var(--text-muted)'}; border-color: ${data.enviarNota ? 'var(--primary)' : 'var(--border)'};">
+                                    <option value="" ${!data.enviarNota ? 'selected' : ''}>Enviar Nota: Não se aplica (Vazio)</option>
+                                    <option value="SIM" ${data.enviarNota === 'SIM' ? 'selected' : ''}>Enviar Nota: SIM</option>
+                                    <option value="NÃO" ${data.enviarNota === 'NÃO' || data.enviarNota === 'NAO' ? 'selected' : ''}>Enviar Nota: NÃO</option>
+                                </select>
+                            </div>
+
+                            <div style="background: var(--bg); padding: 14px; border-radius: 8px; border: 1px dashed var(--border-light); margin-bottom: 12px;">
+                                <span style="font-size:12.5px; color:var(--text-muted); font-weight:600; display:block; margin-bottom:10px;">CÓDIGOS RMS:</span>
+                                <div class="tags-container" style="margin-bottom: 12px;">${codesHtml}</div>
+                                <div class="input-group" style="margin:0;">
+                                    <input type="text" id="edit-add-code-${data.id}" placeholder="Novo código (Enter)" class="add-code-input" data-id="${data.id}" style="max-width: 250px;">
+                                    <button class="btn btn-primary" data-action="add-code" data-id="${data.id}">➕ Adicionar</button>
+                                </div>
+                            </div>
+
+                            <div style="background: var(--bg); padding: 14px; border-radius: 8px; border: 1px dashed #6366f1; margin-bottom: 12px;">
+                                <span style="font-size:12.5px; color:#818cf8; font-weight:600; display:block; margin-bottom:10px;">CONTATOS:</span>
+                                <div class="tags-container" style="margin-bottom: 12px;">${contatosHtml}</div>
+                                <div class="input-group" style="margin:0;">
+                                    <input type="text" id="edit-add-contato-${data.id}" placeholder="Nome, E-mail ou Telefone (Enter)" class="add-contato-input" data-id="${data.id}" style="max-width: 280px;">
+                                    <button class="btn btn-primary" style="background:#6366f1;" data-action="add-contato" data-id="${data.id}">➕ Adicionar Contato</button>
+                                </div>
+                            </div>
+
+                            <div style="background: var(--bg); padding: 14px; border-radius: 8px; border: 1px dashed var(--border-light);">
+                                <span style="font-size:12.5px; color:var(--text-muted); font-weight:600; display:block; margin-bottom:10px;">AGENDAS PERMITIDAS:</span>
+                                <div class="tags-container" style="margin-bottom: 12px;">${agendasHtml}</div>
+                                <div class="input-group" style="margin:0;">
+                                    <input type="text" id="edit-add-agenda-${data.id}" placeholder="Cód. Agenda (Enter)" class="add-agenda-input" data-id="${data.id}" style="max-width: 250px;">
+                                    <button class="btn btn-primary" data-action="add-agenda" data-id="${data.id}">➕ Vincular</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                // Tags de status condicionais (só renderiza se existir conteúdo na variável)
+                const ativoBadge = data.ativo ? `<span class="tag" style="border-color:${data.ativo === 'INATIVO' ? 'var(--danger)' : 'var(--success)'}; color:${data.ativo === 'INATIVO' ? 'var(--danger)' : 'var(--success)'}; background:transparent; font-size: 11px; padding: 3px 6px;">${data.ativo === 'INATIVO' ? '🔴 CONTRATO INATIVO' : '🟢 CONTRATO ATIVO'}</span>` : '';
+                
+                const nsBadge = data.notaServico ? `<span class="tag" style="border-color:${data.notaServico === 'INATIVO' ? 'var(--warning)' : 'var(--success)'}; color:${data.notaServico === 'INATIVO' ? 'var(--warning)' : 'var(--success)'}; background:transparent; font-size: 11px; padding: 3px 6px;">📄 N.S. ${data.notaServico}</span>` : '';
+                
+                const promBadge = data.promissoria ? `<span class="tag" style="border-color:${data.promissoria === 'INATIVO' ? 'var(--warning)' : 'var(--success)'}; color:${data.promissoria === 'INATIVO' ? 'var(--warning)' : 'var(--success)'}; background:transparent; font-size: 11px; padding: 3px 6px;">✍️ PROM. ${data.promissoria}</span>` : '';
+                
+                const envNotaBadge = data.enviarNota ? `<span class="tag" style="border-color:${data.enviarNota === 'NÃO' || data.enviarNota === 'NAO' ? 'var(--warning)' : 'var(--success)'}; color:${data.enviarNota === 'NÃO' || data.enviarNota === 'NAO' ? 'var(--warning)' : 'var(--success)'}; background:transparent; font-size: 11px; padding: 3px 6px;">📧 ENV. NOTA: ${data.enviarNota}</span>` : '';
+
+                const cnpjBadge = data.cnpj ? `<span style="background: var(--surface-hover); padding: 4px 8px; border-radius: 4px;"><strong>CNPJ:</strong> <span style="color:var(--text);">${data.cnpj}</span></span>` : '';
+                const cnpjItauBadge = data.cnpjItau ? `<span style="background: var(--surface-hover); padding: 4px 8px; border-radius: 4px;"><strong>CNPJ Itaú:</strong> <span style="color:var(--text);">${data.cnpjItau}</span></span>` : '';
+                const percBadge = data.percContratual > 0 ? `<span style="background: var(--surface-hover); padding: 4px 8px; border-radius: 4px;"><strong>% Contrato:</strong> <span style="color:var(--success); font-weight:600;">${percStr}</span></span>` : '';
+                const prazoBadge = data.prazo ? `<span style="background: var(--surface-hover); padding: 4px 8px; border-radius: 4px;"><strong>Prazo:</strong> <span style="color:var(--text);">${data.prazo} dias</span></span>` : '';
+                
+                const badgesHtml = [cnpjBadge, cnpjItauBadge, percBadge, prazoBadge].filter(Boolean).join(' ');
+                const badgesSection = badgesHtml ? `<div style="display: flex; gap: 12px; flex-wrap: wrap; font-size: 13.5px; color: var(--text-muted); margin-bottom: 12px;">${badgesHtml}</div>` : '';
+
+                const codesSection = hasCodes ? `
+                    <div style="margin-bottom: 12px;">
+                        <span style="font-size:12px; color:var(--text-muted); font-weight:600; display:block; margin-bottom:6px;">CÓDIGOS RMS:</span>
+                        <div class="tags-container">${codesHtml}</div>
+                    </div>
+                ` : '';
+
+                const contatosSection = hasContatos ? `
+                    <div style="margin-bottom: 12px;">
+                        <span style="font-size:12px; color:var(--text-muted); font-weight:600; display:block; margin-bottom:6px;">CONTATOS:</span>
+                        <div class="tags-container">${contatosHtml}</div>
+                    </div>
+                ` : '';
+
+                const agendasSection = hasAgendas ? `
+                    <div>
+                        <span style="font-size:12px; color:var(--text-muted); font-weight:600; display:block; margin-bottom:6px;">AGENDAS VINCULADAS:</span>
+                        <div class="tags-container">${agendasHtml}</div>
+                    </div>
+                ` : '';
+
+                return `
+                    <div class="forn-item">
+                        <div class="flex-between" style="margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+                            <strong style="font-size: 16px; text-transform: uppercase; display:flex; align-items:center; gap:8px; flex-wrap: wrap;">
+                                ${data.nome || 'FORNECEDOR SEM NOME'} 
+                                ${ativoBadge}
+                                ${nsBadge}
+                                ${promBadge}
+                                ${envNotaBadge}
+                            </strong>
+                            <div style="display:flex; gap:6px;">
+                                <button class="btn btn-icon" data-action="edit-forn" data-id="${data.id}" title="Editar" style="background: transparent; border: 1px solid var(--border);">✏️ Editar</button>
+                                <button class="btn btn-danger btn-icon" data-action="del-forn" data-id="${data.id}" title="Excluir">🗑️</button>
+                            </div>
+                        </div>
+                        
+                        ${badgesSection}
+                        ${codesSection}
+                        ${contatosSection}
+                        ${agendasSection}
+                    </div>
+                `;
+            }).join('');
+        };
+
+        document.getElementById('listaFornecedores').addEventListener('input', e => {
+            if (e.target.id && (e.target.id.startsWith('edit-cnpj-') || e.target.id.startsWith('edit-cnpjItau-'))) {
+                e.target.value = maskCNPJ(e.target.value);
+            }
+        });
+
+        document.getElementById('buscaForn').addEventListener('input', () => {
+            if(editingForn) { editingForn = null; } 
+            renderFornecedores();
+        });
+
+        document.getElementById('listaFornecedores').addEventListener('change', e => {
+            if (e.target.tagName.toLowerCase() === 'select' && e.target.id.startsWith('edit-')) {
+                if (e.target.value !== "") {
+                    e.target.style.color = "var(--text)";
+                    e.target.style.borderColor = "var(--primary)";
+                } else {
+                    e.target.style.color = "var(--text-muted)";
+                    e.target.style.borderColor = "var(--border)";
+                }
+            }
+        });
+
+        document.getElementById('listaFornecedores').addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (e.target.classList.contains('add-code-input')) {
+                    const btn = e.target.nextElementSibling;
+                    if(btn && btn.dataset.action === 'add-code') btn.click();
+                } else if (e.target.classList.contains('add-agenda-input')) {
+                    const btn = e.target.nextElementSibling;
+                    if(btn && btn.dataset.action === 'add-agenda') btn.click();
+                } else if (e.target.classList.contains('add-contato-input')) {
+                    const btn = e.target.nextElementSibling;
+                    if(btn && btn.dataset.action === 'add-contato') btn.click();
+                }
+            }
+        });
+
+        document.getElementById('listaFornecedores').addEventListener('click', e => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            const action = btn.dataset.action;
+            const id = parseInt(btn.dataset.id);
+            const fornOriginal = state.fornecedores.find(x => x.id === id);
+
+            if (action === 'edit-forn') {
+                editingForn = JSON.parse(JSON.stringify(fornOriginal));
+                renderFornecedores();
+            } 
+            else if (action === 'cancel-forn') {
+                if (fornOriginal.isNew) {
+                    state.fornecedores = state.fornecedores.filter(x => x.id !== id);
+                }
+                editingForn = null;
+                renderFornecedores();
+            } 
+            else if (action === 'save-forn') {
+                syncEditInputs();
+                delete editingForn.isNew; 
+                const index = state.fornecedores.findIndex(x => x.id === id);
+                if (index !== -1) state.fornecedores[index] = editingForn;
+                editingForn = null;
+                renderFornecedores();
+            } 
+            else if (action === 'del-forn') {
+                if(confirm(`Tem certeza que deseja excluir o fornecedor ${fornOriginal.nome || 'sem nome'} do banco de dados?`)) {
+                    state.fornecedores = state.fornecedores.filter(x => x.id !== id);
+                    if(editingForn && editingForn.id === id) editingForn = null;
+                    renderFornecedores();
+                }
+            }
+            else if (action === 'add-code') {
+                syncEditInputs();
+                const input = document.getElementById('edit-add-code-' + id);
+                const novos = extractCodes(input.value);
+                if (novos.length === 0) return;
+
+                const ownerMap = {};
+                state.fornecedores.forEach(f => {
+                    if(f.id !== editingForn.id) (f.codigos||[]).forEach(c => ownerMap[c] = f.nome);
+                });
+
+                novos.forEach(c => {
+                    if (ownerMap[c]) showToast(`O código ${c} já pertence a "${ownerMap[c]}"!`, 'error');
+                    else if (!editingForn.codigos.includes(c)) editingForn.codigos.push(c);
+                });
+
+                renderFornecedores();
+                setTimeout(() => document.getElementById('edit-add-code-' + id).focus(), 50);
+            } 
+            else if (action === 'remove-code') {
+                syncEditInputs();
+                editingForn.codigos = editingForn.codigos.filter(c => c !== btn.dataset.code);
+                renderFornecedores();
+            }
+            else if (action === 'add-contato') {
+                syncEditInputs();
+                const input = document.getElementById('edit-add-contato-' + id);
+                const val = input.value.trim();
+                if(!val) return;
+
+                if(!editingForn.contatos) editingForn.contatos = [];
+                if(!editingForn.contatos.includes(val)) {
+                    editingForn.contatos.push(val);
+                }
+                renderFornecedores();
+                setTimeout(() => document.getElementById('edit-add-contato-' + id).focus(), 50);
+            }
+            else if (action === 'remove-contato') {
+                syncEditInputs();
+                editingForn.contatos = editingForn.contatos.filter(c => c !== btn.dataset.contato);
+                renderFornecedores();
+            }
+            else if (action === 'add-agenda') {
+                syncEditInputs();
+                const input = document.getElementById('edit-add-agenda-' + id);
+                const val = input.value.trim();
+                if(!val) return;
+
+                const ag = state.agendas.find(a => a.cod === val);
+                if(!ag) {
+                    showToast(`A agenda "${val}" não está cadastrada. Adicione-a na aba "Agendas" primeiro!`, 'error');
+                    return;
+                }
+
+                if(!editingForn.agendasPermitidas) editingForn.agendasPermitidas = [];
+                if(!editingForn.agendasPermitidas.includes(val)) {
+                    editingForn.agendasPermitidas.push(val);
+                    renderFornecedores();
+                    setTimeout(() => document.getElementById('edit-add-agenda-' + id).focus(), 50);
+                } else {
+                    input.value = '';
+                }
+            }
+            else if (action === 'remove-agenda') {
+                syncEditInputs();
+                editingForn.agendasPermitidas = editingForn.agendasPermitidas.filter(a => a !== btn.dataset.agenda);
+                renderFornecedores();
+            }
+        });
+
+        document.getElementById('btnNovoForn').addEventListener('click', () => {
+            document.getElementById('buscaForn').value = '';
+            // Novo fornecedor inicializa com todos os status vazios (Não se aplica)
+            const novoForn = { id: state.nextFornId++, nome: '', codigos: [], cnpj: '', cnpjItau: '', prazo: '', contatos: [], percContratual: 0, agendasPermitidas: [], ativo: '', notaServico: '', promissoria: '', enviarNota: '', isNew: true };
+            state.fornecedores.unshift(novoForn);
+            editingForn = JSON.parse(JSON.stringify(novoForn)); 
+            renderFornecedores();
+            setTimeout(() => document.getElementById('edit-nome-' + novoForn.id).focus(), 50);
+        });
+
+        loadCredentials();
+    </script>
+</body>
+</html>
