@@ -94,16 +94,16 @@
                 <img src="3x.png" alt="3X Logo" style="height: 60px; object-fit: contain;">
             </div>
             <h2>Gestor Central de Cadastros</h2>
-            <p>Conecte-se ao Google Sheets para gerenciar os fornecedores e agendas de todas as suas aplicações.</p>
+            <p>Acesse o painel para gerenciar fornecedores e agendas.</p>
             
             <div style="margin-bottom: 16px;">
-                <label for="loginUrl">URL da API (Google Apps Script):</label>
-                <input type="text" id="loginUrl" placeholder="https://script.google.com/macros/s/.../exec">
+                <label for="loginUser">Usuário:</label>
+                <input type="text" id="loginUser" placeholder="Digite o usuário de acesso">
             </div>
             
             <div style="margin-bottom: 24px;">
-                <label for="loginSenha">Senha de Acesso:</label>
-                <input type="password" id="loginSenha" placeholder="Sua senha secreta">
+                <label for="loginSenha">Senha:</label>
+                <input type="password" id="loginSenha" placeholder="Digite a senha de acesso">
             </div>
             
             <button class="btn btn-primary" id="btnEntrar" style="width: 100%; padding: 12px; font-size: 15px;">
@@ -128,7 +128,7 @@
                         ⬆️ Salvar na Nuvem
                     </button>
                     <button class="btn" id="btnDesconectar" style="background: transparent; border: 1px solid var(--border-light);">
-                        Desconectar
+                        🚪 Sair
                     </button>
                 </div>
             </header>
@@ -180,9 +180,12 @@
     <div id="toast-container"></div>
 
     <script>
-        const CREDENTIALS_KEY = 'gestor_cadastros_creds_v1';
+        // Configurações do Backend conectadas diretamente no código
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz-LEp5jPcZOrjgwaw30Qbn0YsYtesPkkVBS3_lUC-Mi8J0J818WxcHMY1Xyl5XRUcufg/exec';
+        const CREDENTIALS_KEY = 'gestor_cadastros_session_v3';
+        
         let state = { fornecedores: [], agendas: [], nextFornId: 1 };
-        let creds = { url: '', senha: '' };
+        let sessionData = { user: '', pass: '' }; // Armazena as credenciais para envios futuros
         let editingForn = null;
 
         const showToast = (msg, type = 'info') => {
@@ -239,45 +242,34 @@
             return isNaN(num) ? 0 : num;
         };
 
-        const loadCredentials = () => {
-            const raw = localStorage.getItem(CREDENTIALS_KEY);
-            if(raw) {
-                creds = JSON.parse(raw);
-                document.getElementById('loginUrl').value = creds.url;
-                document.getElementById('loginSenha').value = creds.senha;
-            }
-        };
-
-        const saveCredentials = () => {
-            creds.url = document.getElementById('loginUrl').value.trim();
-            creds.senha = document.getElementById('loginSenha').value;
-            localStorage.setItem(CREDENTIALS_KEY, JSON.stringify(creds));
-        };
-
         document.getElementById('btnDesconectar').addEventListener('click', () => {
+            localStorage.removeItem(CREDENTIALS_KEY);
             document.getElementById('appView').style.display = 'none';
             document.getElementById('loginView').style.display = 'flex';
+            document.getElementById('loginUser').value = '';
+            document.getElementById('loginSenha').value = '';
+            sessionData = { user: '', pass: '' };
             state.fornecedores = [];
             state.agendas = [];
             editingForn = null;
         });
 
-        document.getElementById('btnEntrar').addEventListener('click', async () => {
-            saveCredentials();
-            if(!creds.url || !creds.senha) return showToast('Preencha a URL e a Senha para conectar.', 'error');
-
+        // Função responsável por enviar as credenciais para o backend validar
+        const performLogin = async (user, pass, isAutoLogin = false) => {
             const btn = document.getElementById('btnEntrar');
-            btn.textContent = 'Conectando...'; btn.disabled = true;
+            btn.textContent = 'Conectando...'; 
+            btn.disabled = true;
 
             try {
-                const res = await fetch(creds.url, {
+                const res = await fetch(SCRIPT_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ acao: 'LER', senha: creds.senha })
+                    // Envia usuário e senha informados para a checagem no Google Sheets
+                    body: JSON.stringify({ acao: 'LER', usuario: user, senha: pass }) 
                 });
                 
                 const data = await res.json();
-                if(data.error) throw new Error(data.error);
+                if(data.error) throw new Error(data.error); // Retorna erro caso o Apps Script bloqueie
                 
                 state.nextFornId = 1;
                 state.fornecedores = data.fornecedores.map(f => ({
@@ -297,6 +289,10 @@
                 }));
                 state.agendas = data.agendas || [];
 
+                // Se o servidor autorizou, salva as credenciais localmente para facilitar
+                sessionData = { user, pass };
+                localStorage.setItem(CREDENTIALS_KEY, JSON.stringify(sessionData));
+                
                 document.getElementById('loginView').style.display = 'none';
                 document.getElementById('appView').style.display = 'flex';
                 
@@ -305,10 +301,25 @@
                 showToast('Banco de dados carregado com sucesso!', 'success');
 
             } catch (e) {
-                showToast('Falha na conexão: ' + e.message, 'error');
+                showToast(e.message, 'error');
+                if(isAutoLogin) {
+                    localStorage.removeItem(CREDENTIALS_KEY);
+                }
             } finally {
-                btn.textContent = 'Conectar'; btn.disabled = false;
+                btn.textContent = 'Conectar'; 
+                btn.disabled = false;
             }
+        };
+
+        document.getElementById('btnEntrar').addEventListener('click', () => {
+            const user = document.getElementById('loginUser').value.trim();
+            const pass = document.getElementById('loginSenha').value;
+
+            if (!user || !pass) {
+                return showToast('Preencha usuário e senha.', 'error');
+            }
+
+            performLogin(user, pass, false);
         });
 
         document.getElementById('btnSincronizarNuvem').addEventListener('click', async () => {
@@ -325,12 +336,13 @@
                     return copy;
                 });
 
-                const res = await fetch(creds.url, {
+                const res = await fetch(SCRIPT_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify({ 
                         acao: 'SALVAR', 
-                        senha: creds.senha,
+                        usuario: sessionData.user, // Envia para o backend autorizar a gravação
+                        senha: sessionData.pass,
                         fornecedores: fornecedoresParaSalvar,
                         agendas: state.agendas
                     })
@@ -432,7 +444,6 @@
             
             if (termo) {
                 filtrados = filtrados.filter(f => {
-                    // Texto mestre com todos os dados para a busca captar sem falhas
                     const strBusca = removeAcentos(`
                         ${f.nome} ${f.cnpj} ${f.cnpjItau} ${f.prazo} 
                         ${(f.contatos || []).join(' ')}
@@ -568,13 +579,9 @@
                     `;
                 }
 
-                // Tags de status condicionais (só renderiza se existir conteúdo na variável)
                 const ativoBadge = data.ativo ? `<span class="tag" style="border-color:${data.ativo === 'INATIVO' ? 'var(--danger)' : 'var(--success)'}; color:${data.ativo === 'INATIVO' ? 'var(--danger)' : 'var(--success)'}; background:transparent; font-size: 11px; padding: 3px 6px;">${data.ativo === 'INATIVO' ? '🔴 CONTRATO INATIVO' : '🟢 CONTRATO ATIVO'}</span>` : '';
-                
                 const nsBadge = data.notaServico ? `<span class="tag" style="border-color:${data.notaServico === 'INATIVO' ? 'var(--warning)' : 'var(--success)'}; color:${data.notaServico === 'INATIVO' ? 'var(--warning)' : 'var(--success)'}; background:transparent; font-size: 11px; padding: 3px 6px;">📄 N.S. ${data.notaServico}</span>` : '';
-                
                 const promBadge = data.promissoria ? `<span class="tag" style="border-color:${data.promissoria === 'INATIVO' ? 'var(--warning)' : 'var(--success)'}; color:${data.promissoria === 'INATIVO' ? 'var(--warning)' : 'var(--success)'}; background:transparent; font-size: 11px; padding: 3px 6px;">✍️ PROM. ${data.promissoria}</span>` : '';
-                
                 const envNotaBadge = data.enviarNota ? `<span class="tag" style="border-color:${data.enviarNota === 'NÃO' || data.enviarNota === 'NAO' ? 'var(--warning)' : 'var(--success)'}; color:${data.enviarNota === 'NÃO' || data.enviarNota === 'NAO' ? 'var(--warning)' : 'var(--success)'}; background:transparent; font-size: 11px; padding: 3px 6px;">📧 ENV. NOTA: ${data.enviarNota}</span>` : '';
 
                 const cnpjBadge = data.cnpj ? `<span style="background: var(--surface-hover); padding: 4px 8px; border-radius: 4px;"><strong>CNPJ:</strong> <span style="color:var(--text);">${data.cnpj}</span></span>` : '';
@@ -775,7 +782,6 @@
 
         document.getElementById('btnNovoForn').addEventListener('click', () => {
             document.getElementById('buscaForn').value = '';
-            // Novo fornecedor inicializa com todos os status vazios (Não se aplica)
             const novoForn = { id: state.nextFornId++, nome: '', codigos: [], cnpj: '', cnpjItau: '', prazo: '', contatos: [], percContratual: 0, agendasPermitidas: [], ativo: '', notaServico: '', promissoria: '', enviarNota: '', isNew: true };
             state.fornecedores.unshift(novoForn);
             editingForn = JSON.parse(JSON.stringify(novoForn)); 
@@ -783,7 +789,20 @@
             setTimeout(() => document.getElementById('edit-nome-' + novoForn.id).focus(), 50);
         });
 
-        loadCredentials();
+        // Carrega sessão automaticamente se já existir login prévio
+        const loadSession = () => {
+            const raw = localStorage.getItem(CREDENTIALS_KEY);
+            if(raw) {
+                const session = JSON.parse(raw);
+                if (session.user && session.pass) {
+                    performLogin(session.user, session.pass, true);
+                }
+            } else {
+                document.getElementById('loginView').style.display = 'flex';
+            }
+        };
+
+        loadSession();
     </script>
 </body>
 </html>
